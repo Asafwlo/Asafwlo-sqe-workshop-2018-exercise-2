@@ -19,5 +19,14 @@ $(document).ready(function () {
 });
 
 function drawFunction(func){
-
+    var toPrint = document.getElementById('codePlaceholder').value;
+    for (var letter=0;letter < toPrint.length;letter++)
+    {
+        if (letter > 0 && letter < toPrint.length-1)
+        {
+            if (toPrint[letter] in func && toPrint[letter-1] == " " && toPrint[letter+1] == " ")
+                toPrint[letter].style.color = "green";
+        }
+    }
+    document.getElementById('outPutFunction').value = toPrint;
 }

@@ -5,13 +5,40 @@ const parseCode = (codeToParse) => {
     return esprima.parseScript(codeToParse);
 };
 
-var jsoned;
 var variables = {};
+var params = {};
 
 const objectTable = (parsedCode) => {
     functionJson(parsedCode);
-    return jsoned;
+    reOrder(variables);
+    cleanText(variables, parseCode);
 };
+
+function replaceVars(a, b, vars, where)
+{
+    vars[where] = vars[where].replaceAll(a, b);
+}
+
+String.prototype.replaceAll = function(search, replacement){
+    var target = this;
+    return target.replace(new RegExp(search, 'g'), replacement);
+};
+
+function reOrder(vars){
+    for (let symb in vars)
+        if (!isNumber(vars[symb]))
+        {
+            var currSymb = vars[symb].match(/(\w+)/g);
+            for (var index in currSymb)
+                if (currSymb[index] in vars && vars[currSymb[index]] !== '')   
+                    replaceVars(currSymb[index], vars[currSymb[index]], vars, symb);
+        }
+}
+
+function cleanText(vars, pCode)
+{
+    
+}
 
 function handleUnaryExpression(obj){
     var ans = '';
@@ -72,7 +99,7 @@ function handlefunctionDeclaration(obj){
     for (var index = 0; index < obj.params.length;index++){
         switch (obj.params[index].type){
         case 'AssignmentPattern':
-            variables[getDeclaration(obj.params[index].left)] = getDeclaration(obj.right);
+            params[getDeclaration(obj.params[index].left)] = getDeclaration(obj.params[index].right);
             break;
         case 'Identifier':
             variables[obj.params[index].name] = '';
@@ -165,18 +192,15 @@ function handleBody(obj) {
 }
 
 function functionJson(obj){
-    if (obj.hasOwnProperty('length')) {
+    if (obj.hasOwnProperty('length'))
         for (var index = 0; index < obj.length; index++) {
             //isBelong(index);
             var newObj = ExtractElements(obj[index]);
-            if (!isNumber(newObj)) {
+            if (!isNumber(newObj))
                 handleBody(obj[index]);
-            }
         }
-    }
-    else {
+    else 
         functionJson(obj.body);
-    }
 }
 
 export {parseCode, objectTable};
