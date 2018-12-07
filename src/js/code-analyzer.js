@@ -1,22 +1,75 @@
 import * as esprima from 'esprima';
+import { FunctionDeclaration, Loop, If, AssignmentExpression, VariableDeclarator, ReturnStatement } from './model';
 import { isNumber } from 'util';
 
-const parseCode = (codeToParse) => {
-    return esprima.parseScript(codeToParse);
-};
-
+var table;
+var stopLine = false;
+var func = [];
 var variables = {};
-var params = {};
+var values = {};
+var alternate = false;
+var tempVars = {};
+var globals = [];
+var isGlobals = true;
+const parseCode = (codeToParse) => {
+    return esprima.parseScript(codeToParse);    
+};
 
 const objectTable = (parsedCode) => {
-    functionJson(parsedCode);
-    reOrder(variables);
-    cleanText(variables, parseCode);
+    table = { 'Rows': [] };
+    createObjectTable(parsedCode);
+    func = [];
+    globals = [];
+    isGlobals = true;
+    variables = {};
+    values = {};
+    createFunction();
+    return {'func':func, 'values': values};
 };
 
-function replaceVars(a, b, vars, where)
+function handleFD(row, index){
+    isGlobals = false;
+    var s = 'function ' + row.name + '(';
+    for (var i = 0; i < row.params.length;i++)
+    {
+        globals.push(row.params[i].name);
+        if (!row.params[i].hasOwnProperty('value'))
+            s += row.params[i].name + ', ';
+        else {
+            s += row.params[i].name + ' = ' + row.params[i].value + ', ';
+            values[row.params[i].name] = row.params[i].value;
+        }
+    }
+    s = s.substring(0,s.length-2) + ') {';
+    func.push(s);
+    return index;
+}
+
+function handleAE(row, index){
+    if (!isNumber(row.value)){
+        var features = row.value.match(/(\w+)/g);
+        for (var i in features)
+            if (features[i] in variables)  { 
+                if (row.value.indexOf(features[i]) < row.value.length-1 && (row.value[row.value.indexOf(features[i])+1] == '*'||row.value[row.value.indexOf(features[i])+1] == '/'))
+                    row.value = replaceVars(features[i], '('+ variables[features[i]]+')', row.value);
+                else
+                    row.value = replaceVars(features[i], variables[features[i]], row.value);
+                variables[row.name] = row.value;
+            }
+            else
+                variables[row.name] = row.value;
+    }
+    else
+        values[row.name] = row.value;
+    if (globals.indexOf(row.name) > -1)
+        func.push(row.name + ' = ' + row.value + ';');
+    return index;
+}
+
+function replaceVars(a, b, text)
 {
-    vars[where] = vars[where].replaceAll(a, b);
+    text = text.replaceAll(a, b);
+    return text;
 }
 
 String.prototype.replaceAll = function(search, replacement){
@@ -24,126 +77,244 @@ String.prototype.replaceAll = function(search, replacement){
     return target.replace(new RegExp(search, 'g'), replacement);
 };
 
-function reOrder(vars){
-    for (let symb in vars)
-        if (!isNumber(vars[symb]))
-        {
-            var currSymb = vars[symb].match(/(\w+)/g);
-            for (var index in currSymb)
-                if (currSymb[index] in vars && vars[currSymb[index]] !== '')   
-                    replaceVars(currSymb[index], vars[currSymb[index]], vars, symb);
+function handleVD(row, index){
+    if (row.hasOwnProperty('value')){
+        if (!isNumber(row.value)){
+            var features = row.value.match(/(\w+)/g);
+            for (var i in features)
+                if (features[i] in variables)   {
+                    row.value = replaceVars(features[i], variables[features[i]], row.value);
+                    variables[row.name] = row.value;
+                }
+                else
+                    variables[row.name] = row.value;
         }
-}
-
-function cleanText(vars, pCode)
-{
-    
-}
-
-function handleUnaryExpression(obj){
-    var ans = '';
-    ans = ans + obj.operator;
-    ans = ans + getDeclaration(obj.argument);
-    return ans;
-}
-
-function handleBinaryExpression(obj){
-    var left = '', right = '';
-    left = getDeclaration(obj.left);
-    right = getDeclaration(obj.right);
-    return left + obj.operator + right;
-}
-
-function handleUpdateExpression(obj){
-    var ans = '';
-    ans = ans + getDeclaration(obj.argument);
-    if (obj.prefix === true)
-        ans = obj.operator + ans;
-    else
-        ans = ans + obj.operator;
-    return ans;
-}
-
-function ExtractArgument(obj){
-    switch(obj.type){
-    case 'UnaryExpression':
-        return handleUnaryExpression(obj);
-    case 'BinaryExpression':
-        return handleBinaryExpression(obj);
-    case 'LogicalExpression':
-        return handleBinaryExpression(obj);
-    case 'UpdateExpression':
-        return handleUpdateExpression(obj);
+        else
+            values[row.name] = row.value;
+        //func.push('let ' + row.name + ' = ' + row.value + ';');
     }
+    if (isGlobals)
+        globals.push(row.name);
+    // else
+    //     func.push('let ' + row.name);
+    return index;
 }
 
-function getDeclaration(obj){
-    if (obj.type === 'Literal')
-        return obj.value;
-    if (obj.type === 'Identifier')
-        return obj.name;
-    if (obj.type === 'VariableDeclaration'){
-        return handleDeclare(obj.declarations[0]); 
+function handleRS(row, index){
+    if (!isNumber(row.value) && globals.indexOf(row.value) < 0){
+        var features = row.value.match(/(\w+)/g);
+        for (var i in features)
+            if (features[i] in variables)   
+                row.value = replaceVars(features[i], variables[features[i]], row.value);
     }
-    return ExtractArgument(obj);
+    func.push('return ' + row.value);
+    return index;
 }
 
-function handleDeclare(obj){
-    if (obj.hasOwnProperty('init') && obj.init != null)
-        variables[obj.id.name] = getDeclaration(obj.init);
-    else
-        variables[obj.id.name] = '';
-}
-
-function handlefunctionDeclaration(obj){
-    for (var index = 0; index < obj.params.length;index++){
-        switch (obj.params[index].type){
-        case 'AssignmentPattern':
-            params[getDeclaration(obj.params[index].left)] = getDeclaration(obj.params[index].right);
+function handleES(row, index){
+    var first = true;
+    func.push('else {');
+    variables = tempVars;
+    while (index+1<table.Rows.length && (table.Rows[index + 1].hasOwnProperty('belong') || first))
+    {
+        first = false;
+        index++;
+        switch (table.Rows[index].obj.type){
+        case 'Function Declaration':
+            index = handleFD(table.Rows[index].obj, index);
             break;
-        case 'Identifier':
-            variables[obj.params[index].name] = '';
+        case 'Assignment Expression':
+            index = handleAE(table.Rows[index].obj, index);
+            break;
+        case 'If Statement':
+            index = handleIS(table.Rows[index].obj, index);
+            break;
+        case 'Variable Declaration':
+            index = handleVD(table.Rows[index].obj, index);
+            break;
+        case 'Return Statement':
+            index = handleRS(table.Rows[index].obj, index);
+            break;
+        case 'else':
+            index = handleES(table.Rows[index].obj, index);
+            break;
+        case 'Else If Statement':
+            index = handleEIS(table.Rows[index].obj, index);
+            break;
+        case 'While Statement':
+            index = handleWS(table.Rows[index].obj, index);
             break;
         }
     }
+    func.push('}');
+    return index;
 }
 
-function handleAssignmentExpression(obj){
-    if (obj.right.type === 'Literal')
-        variables[obj.left.name] = obj.right.value;
-    else if (obj.right.type === 'Identifier')
-        variables[obj.left.name] = obj.right.name;
-    else
-        variables[obj.left.name] = ExtractArgument(obj.right);
-}
-
-function ExtractElement(obj) {
-    if (obj.type === 'FunctionDeclaration')
-        handlefunctionDeclaration(obj);
-    if (obj.type === 'AssignmentExpression')
-        handleAssignmentExpression(obj);
-    // else 
-    //     return ExtractSpecial(obj);
-}
-
-function ExtractElements(obj) {
-    switch (obj.type) {
-    case 'VariableDeclaration':
-        for (var index = 0; index < obj.declarations.length; index++)
-            handleDeclare(obj.declarations[index]);
+function handleEIS(row, index){
+    variables = tempVars;
+    var first = true;
+    var features = row.condition.match(/(\w+)/g);
+        for (var i in features)
+            if (features[i] in variables)   
+                row.condition = replaceVars(features[i], variables[features[i]], row.condition);
+    func.push('}');
+    func.push('else if (' + row.condition + ') {');
+    tempVars = JSON.parse(JSON.stringify(variables));;
+    while (table.Rows[index + 1].hasOwnProperty('belong') || first)
+    {
+        index++;
+        first = false;
+        switch (table.Rows[index].obj.type){
+        case 'Function Declaration':
+            index = handleFD(table.Rows[index].obj, index);
+            break;
+        case 'Assignment Expression':
+            index = handleAE(table.Rows[index].obj, index);
+            break;
+        case 'If Statement':
+            index = handleIS(table.Rows[index].obj, index);
+            break;
+        case 'Variable Declaration':
+            index = handleVD(table.Rows[index].obj, index);
+            break;
+        case 'Return Statement':
+            index = handleRS(table.Rows[index].obj, index);
         break;
-    case 'ExpressionStatement':
-        return ExtractElement(obj.expression);
-    // case 'ReturnStatement':
-    //     return new ReturnStatement(obj);
-    default:
-        return ExtractElement(obj);
+        case 'else':
+            index = handleES(table.Rows[index].obj, index);
+        break;
+        case 'Else If Statement':
+            index = handleEIS(table.Rows[index].obj, index);
+            break;
+        case 'WhileStatement':
+            index = handleWS(table.Rows[index].obj, index);
+            break;
+        }
     }
-    return 0;
+    return index;
+}
+
+function handleWS(row, index){
+    var first = true;
+    var features = row.condition.match(/(\w+)/g);
+        for (var i in features)
+            if (features[i] in variables)   
+                row.condition = replaceVars(features[i], variables[features[i]], row.condition);
+    func.push('while (' + row.condition + ') {');
+    while (table.Rows[index + 1].hasOwnProperty('belong') || first)
+    {
+        index++;
+        first = false;
+        switch (table.Rows[index].obj.type){
+        case 'Function Declaration':
+            index = handleFD(table.Rows[index].obj, index);
+            break;
+        case 'Assignment Expression':
+            index = handleAE(table.Rows[index].obj, index);
+            break;
+        case 'If Statement':
+            index = handleIS(table.Rows[index].obj, index);
+            break;
+        case 'Variable Declaration':
+            index = handleVD(table.Rows[index].obj, index);
+            break;
+        case 'Return Statement':
+            index = handleRS(table.Rows[index].obj, index);
+        break;
+        case 'else':
+            index = handleES(table.Rows[index].obj, index);
+        break;
+        case 'Else If Statement':
+            index = handleEIS(table.Rows[index].obj, index);
+            break;
+        case 'WhileStatement':
+            index = handleWS(table.Rows[index].obj, index);
+            break;
+        }
+    }
+    func.push('}');
+    return index;
+}
+
+function handleIS(row, index){
+    var first = true;
+    var features = row.condition.match(/(\w+)/g);
+        for (var i in features)
+            if (features[i] in variables)   
+                row.condition = replaceVars(features[i], variables[features[i]], row.condition);
+    func.push('if (' + row.condition + ') {');
+    tempVars = JSON.parse(JSON.stringify(variables));;
+    while (table.Rows[index + 1].hasOwnProperty('belong') || first)
+    {
+        index++;
+        first = false;
+        switch (table.Rows[index].obj.type){
+        case 'Function Declaration':
+            index = handleFD(table.Rows[index].obj, index);
+            break;
+        case 'Assignment Expression':
+            index = handleAE(table.Rows[index].obj, index);
+            break;
+        case 'If Statement':
+            index = handleIS(table.Rows[index].obj, index);
+            break;
+        case 'Variable Declaration':
+            index = handleVD(table.Rows[index].obj, index);
+            break;
+        case 'Return Statement':
+            index = handleRS(table.Rows[index].obj, index);
+        break;
+        case 'else':
+            index = handleES(table.Rows[index].obj, index);
+        break;
+        case 'Else If Statement':
+            index = handleEIS(table.Rows[index].obj, index);
+            break;
+        case 'WhileStatement':
+            index = handleWS(table.Rows[index].obj, index);
+            break;
+        }
+    }
+    func.push('}');
+    return index;
+}
+
+function createFunction(){
+    for (let index = 0; index<table.Rows.length; index++)
+    {
+        switch (table.Rows[index].obj.type){
+        case 'Function Declaration':
+            index = handleFD(table.Rows[index].obj, index);
+            break;
+        case 'Assignment Expression':
+            index = handleAE(table.Rows[index].obj, index);
+            break;
+        case 'If Statement':
+            index = handleIS(table.Rows[index].obj, index);
+            break;
+        case 'Variable Declaration':
+            index = handleVD(table.Rows[index].obj, index);
+            break;
+        case 'Return Statement':
+            index = handleRS(table.Rows[index].obj, index);
+            break;
+        case 'else':
+            index = handleES(table.Rows[index].obj, index);
+            break;
+        case 'Else If Statement':
+            index = handleEIS(table.Rows[index].obj, index);
+            break;
+        case 'WhileStatement':
+            index = handleWS(table.Rows[index].obj, index);
+            break;
+        }
+    }
+    func.push('}');
 }
 
 function isElseIf(obj) {
     if (obj !== null && obj.type === 'IfStatement'){
+        obj.type = 'Else If Statement';
         return 'ifElse';
     }
     else if (obj!==null){
@@ -153,7 +324,6 @@ function isElseIf(obj) {
         return 'if';
 
 }
-
 function bodyType(obj) {
     if (obj.hasOwnProperty('body'))
         return 'body';
@@ -174,33 +344,114 @@ function IfBody(obj)
 function handleBody(obj) {
     switch (bodyType(obj)) {
     case 'body':
-        functionJson(obj.body);
+        createObjectTable(obj.body);
         break;
     case 'ifElse':
-        functionJson(IfBody(obj.consequent));
-        functionJson(IfBody(obj.alternate));
+        createObjectTable(IfBody(obj.consequent));
+        stopLine = false;
+        createObjectTable(IfBody(obj.alternate));
         break;
     case 'else':
-        functionJson(IfBody(obj.alternate));
+        createObjectTable(IfBody(obj.consequent));
+        //stopLine = false;
+        alternate = true;
+        table.Rows.push({ 'obj' : {'type':'else'}});
+        createObjectTable(IfBody(obj.alternate));
         break;
     case 'if':
-        functionJson(IfBody(obj.consequent));
+        createObjectTable(IfBody(obj.consequent));
         break;
     default:
         break;
     }
 }
 
-function functionJson(obj){
-    if (obj.hasOwnProperty('length'))
+function Contains(obj){
+    var list = ['WhileStatement', 'ForStatement', 'ForInStatement', 'ForOfStatement', 'If Statement', 'Else If Statement', 'IfStatement', 'else'];
+    if (list.indexOf(obj.type)>=0 || alternate){
+        alternate = false;
+        return true;
+    }
+    return false;
+}
+
+function isBelong(index)
+{
+    if (table.Rows.length > 0 && table.Rows[table.Rows.length-1].hasOwnProperty('belong') && index == 0)
+        stopLine = true;
+}
+
+function addToTable(newObj, obj){
+    if (stopLine)
+        table.Rows.push({ 'obj': newObj, 'belong': true });
+    else
+        table.Rows.push({ 'obj': newObj });
+    if (Contains(obj))
+        stopLine = true;
+}
+
+export function createObjectTable(obj) {
+    if (obj.hasOwnProperty('length')) {
         for (var index = 0; index < obj.length; index++) {
-            //isBelong(index);
+            isBelong(index);
             var newObj = ExtractElements(obj[index]);
-            if (!isNumber(newObj))
+            if (!isNumber(newObj)) {
+                addToTable(newObj, obj[index]);
                 handleBody(obj[index]);
+            }
         }
+        stopLine = false;
+    }
+    else {
+        createObjectTable(obj.body);
+    }
+}
+
+function ExtractElements(obj) {
+    switch (obj.type) {
+    case 'VariableDeclaration':
+        for (var index = 0; index < obj.declarations.length; index++)
+            table.Rows.push({ 'obj': new VariableDeclarator(obj.declarations[index]) });
+        break;
+    case 'ExpressionStatement':
+        return ExtractElement(obj.expression);
+    case 'ReturnStatement':
+        return new ReturnStatement(obj);
+    default:
+        return ExtractElement(obj);
+    }
+    return 0;
+}
+
+function isLoop(obj)
+{
+    var loopDic = ['WhileStatement', 'DoWhileStatement', 'ForStatement', 'ForOfStatement', 'ForInStatement'];
+    if (loopDic.indexOf(obj.type) >= 0)
+        return true;     
+}
+
+function isIf(obj)
+{
+    var ifDic = ['IfStatement', 'Else If Statement'];
+    if (ifDic.indexOf(obj.type) >= 0)
+        return true;
+}
+
+function ExtractElement(obj) {
+    if (obj.type === 'FunctionDeclaration')
+        return new FunctionDeclaration(obj);
+    if (obj.type === 'AssignmentExpression')
+        return new AssignmentExpression(obj);
     else 
-        functionJson(obj.body);
+        return ExtractSpecial(obj);
+}
+
+function ExtractSpecial(obj){
+    if (isIf(obj))
+        return new If(obj);
+    if (isLoop(obj))
+        return new Loop(obj);
+    return 0;
 }
 
 export {parseCode, objectTable};
