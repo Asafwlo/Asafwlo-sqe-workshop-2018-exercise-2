@@ -43,6 +43,13 @@ function setDeclaration(obj){
     case 'VariableDeclaration':
         var o = new VariableDeclarator(obj.declarations[0]); 
         return o.name + '=' + o.value;
+    default:
+        return setDeclarationExpression(obj);
+    }
+}
+
+function setDeclarationExpression(obj){
+    switch(obj.type){
     case 'MemberExpression':
         return setDeclaration(obj.object) + '['+setDeclaration(obj.property)+']';
     case 'ArrayExpression':
