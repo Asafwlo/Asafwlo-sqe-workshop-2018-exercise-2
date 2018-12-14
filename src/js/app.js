@@ -33,6 +33,8 @@ function drawFunction(funcObject){
         if (funcObject.func[row].includes('else if'))
         {
             exp = funcObject.func[row].substring(9,funcObject.func[row].length-3);
+            exp = exp.replace('[','_');
+            exp = exp.replace(']','_');
             sol = parser.evaluate(exp, funcObject.values);
             if (!ifVal && sol){
                 color = 'green';
@@ -70,6 +72,8 @@ function drawFunction(funcObject){
         else if (funcObject.func[row].includes('if'))
         {
             exp = funcObject.func[row].substring(4,funcObject.func[row].length-3);
+            exp = exp.replace('[','_');
+            exp = exp.replace(']','_');
             sol = parser.evaluate(exp, funcObject.values);
             if (sol){
                 color = 'green';

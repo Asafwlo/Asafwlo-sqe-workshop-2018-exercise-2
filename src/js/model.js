@@ -23,18 +23,33 @@ class Param{
     }
 }
 
+function handleArrayExp(obj)
+{
+    var s='[';
+    for (var i = 0; i<obj.elements.length; i++)
+    {
+        s += setDeclaration(obj.elements[i]) + ',';
+    }
+    s = s.substring(0,s.length - 1) + ']';
+    return s;
+}
+
 function setDeclaration(obj){
-    if (obj.type === 'Literal')
+    switch(obj.type){
+    case 'Literal':
         return obj.value;
-    if (obj.type === 'Identifier')
+    case 'Identifier':
         return obj.name;
-    if (obj.type === 'VariableDeclaration'){
+    case 'VariableDeclaration':
         var o = new VariableDeclarator(obj.declarations[0]); 
         return o.name + '=' + o.value;
-    }
-    if (obj.type === 'MemberExpression')
+    case 'MemberExpression':
         return setDeclaration(obj.object) + '['+setDeclaration(obj.property)+']';
-    return ExtractArgument(obj);
+    case 'ArrayExpression':
+        return handleArrayExp(obj);
+    default:
+        return ExtractArgument(obj);
+    }
 }
 
 export class VariableDeclarator{
@@ -50,12 +65,7 @@ export class AssignmentExpression{
     constructor(obj){
         this.type = 'Assignment Expression';
         this.name = obj.left.name;
-        if (obj.right.type === 'Literal')
-            this.value = obj.right.value;
-        else if (obj.right.type === 'Identifier')
-            this.value = obj.right.name;
-        else
-            this.value = ExtractArgument(obj.right);
+        this.value = setDeclaration(obj.right);
     }
 }
 
