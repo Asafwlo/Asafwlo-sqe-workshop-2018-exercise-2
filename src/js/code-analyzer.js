@@ -30,15 +30,31 @@ const objectTable = (parsedCode) => {
 
 function fixValues(){
     for (var i in values)
-        if(!isNumber(values[i]) && values[i].includes('['))
+        if(typeof(values[i]) === 'string' && values[i].includes('['))
         {
-            var index = 0;
             var vals = values[i].substring(1, values[i].length-1).split(',');
-            for (var j = 0; j<vals.length;j++){
-                values[i + '_'+index+'_'] = vals[j];
-                index++;
-            }
+            for (var j = 0; j < vals.length; j++)
+                insertToValues(i, j, vals[j]);
         }
+        else
+            values[i] = valuesToType(values[i]);
+}
+
+function insertToValues(i, j, v)
+{
+    if (!((i + '_' + j + '_') in values))
+        values[i + '_' + j + '_'] = valuesToType(v);
+}
+
+function valuesToType(v){
+    if (v == 'true')
+        return true;
+    else if (v == 'false')
+        return false;   
+    else if (!isNumber(v) && v.includes('\''))
+        return v.split('\'')[1];
+    else
+        return parseInt(v);
 }
 
 function replaceValue(row, f) {
@@ -77,7 +93,8 @@ function handleFD(row, index) {
             s += row.params[i].name + ', ';
         else {
             s += row.params[i].name + ' = ' + row.params[i].value + ', ';
-            values[row.params[i].name] = row.params[i].value;
+            if (!(row.params[i].name in values))
+                values[row.params[i].name] = row.params[i].value;
         }
     }
     s = s.substring(0, s.length - 2) + ') {';
@@ -90,8 +107,13 @@ function handleAE(row, index) {
         replaceVariables(row);
     else
         values[row.name] = row.value;
-    if (globals.indexOf(row.name) > -1)
+    if (globals.indexOf(row.name.split('[')[0]) > -1){
         insertToFunc(row.name + ' = ' + row.value + ';');
+        if (row.name.includes('['))
+            values[row.name.replace('[', '_').replace(']','_')] = row.value;
+        else
+            values[row.name] = row.value;
+    }
     return index;
 }
 
@@ -127,9 +149,8 @@ function replaceVariables(row) {
 
 function handleVD(row, index) {
     if (row.hasOwnProperty('value')) {
-        if (!isNumber(row.value)) {
+        if (!isNumber(row.value) && !row.value.includes('['))
             row.value = replaceVariables(row);
-        }
         else
             values[row.name] = row.value;
     }
@@ -139,7 +160,7 @@ function handleVD(row, index) {
 }
 
 function handleRS(row, index) {
-    if (!isNumber(row.value) && globals.indexOf(row.value) < 0) {
+    if (typeof(row.value) == 'string' && globals.indexOf(row.value) < 0) {
         var features = row.value.match(/(\w+)/g);
         for (var i in features)
             if (features[i] in variables)
@@ -235,7 +256,7 @@ function handleIS(row, index) {
     var first = true;
     var features = row.condition.match(/(\w+)/g);
     for (var i in features)
-        if (features[i] in variables)
+        if (features[i] in variables && globals.indexOf(features[i])<0)
             row.condition = replaceVars(features[i], variables[features[i]], row.condition);
     insertToFunc('if (' + row.condition + ') {');
     tempVars = JSON.parse(JSON.stringify(variables));

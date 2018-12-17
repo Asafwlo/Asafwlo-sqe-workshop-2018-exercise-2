@@ -54,5 +54,10 @@ describe('The convertion from parsed data to models object',()=>{
         var data = objectTable(parsed);
         assert.equal(JSON.stringify(data),'{"func":["function foo(x = [1,2,3]) {","if (x[2]+1<5) {","return x[1]","}","}"],"values":{"x":"[1,2,3]","x_0_":"1","x_1_":"2","x_2_":"3"}}');
     });
+    it('is converting complex complex If statement correctly2', ()=>{
+        var parsed = parseCode('function foo(a=true, b=false){if(true||(a&&b)){return true;}if(!true){return false;}}');
+        var data = objectTable(parsed);
+        assert.equal(JSON.stringify(data),'{"func":["function foo(a = true, b = false) {","if (true||a&&b) {","return true","}","if (!true) {","return false","}","}"],"values":{"a":true,"b":false}}');
+    });
     
 });

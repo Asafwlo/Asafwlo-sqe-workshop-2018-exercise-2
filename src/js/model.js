@@ -37,12 +37,12 @@ function handleArrayExp(obj)
 function setDeclaration(obj){
     switch(obj.type){
     case 'Literal':
-        return obj.value;
+        return obj.raw;
     case 'Identifier':
         return obj.name;
-    case 'VariableDeclaration':
-        var o = new VariableDeclarator(obj.declarations[0]); 
-        return o.name + '=' + o.value;
+    //case 'VariableDeclaration':
+    //  var o = new VariableDeclarator(obj.declarations[0]); 
+        //return o.name + '=' + o.value;
     default:
         return setDeclarationExpression(obj);
     }
@@ -62,7 +62,7 @@ function setDeclarationExpression(obj){
 export class VariableDeclarator{
     constructor(obj){
         this.type = 'Variable Declaration';
-        this.name = obj.id.name;
+        this.name = setDeclaration(obj.id);
         if (obj.hasOwnProperty('init') && obj.init != null)
             this.value = setDeclaration(obj.init);
     }
@@ -71,7 +71,7 @@ export class VariableDeclarator{
 export class AssignmentExpression{
     constructor(obj){
         this.type = 'Assignment Expression';
-        this.name = obj.left.name;
+        this.name = setDeclaration(obj.left);
         this.value = setDeclaration(obj.right);
     }
 }
