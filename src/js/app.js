@@ -22,23 +22,48 @@ $(document).ready(function () {
 });
 
 function replaceParams(input, code){
-    var ci = code.indexOf('(');
-    var co = code.indexOf(')');
-    var ii = input.indexOf('(');
-    var io = input.indexOf(')');
-    var cparams = code.substring(ci+1,co).split(',');
-    var iparams = input.substring(ii+1,io).split(',');
-    for (var index=0;index<cparams.length;index++)
+    var ci = code.indexOf('('),co = code.indexOf(')'),ii = input.indexOf('('),io = input.indexOf(')');
+    var cparams = code.substring(ci+1,co).split(','), iparams = input.substring(ii+1,io).split(',');
+    var indexV=0, indexC=0, len = Math.max([cparams.length, iparams.length]);
+    var been = {};
+    for (let index=0;index<iparams.length;index++)
     {
-        var inputText = setInputParams(iparams, index);
-        var vars = inputText.split(';')[0];
-        if (!iparams[index].includes('='))
-            code = 'let ' + cparams[index].trim() + '=' + vars + ';' + code;
-        else
-            code = 'let ' + vars + ';' + code;
+        let inputText = setInputParams(iparams, index);
+        let vars = inputText.split(';')[0];
+        var res = getVName(cparams[indexV], indexV);
+        been[res.split(';')[0]] = true; 
+        indexV = parseInt(res.split(';')[1]) + 1;
+        code = 'let ' + res.split(';')[0] + '=' + vars + ';' + code;
         index = inputText.split(';')[1];
     }
+    indexV=0;
+    for (let index=0;index<cparams.length;index++)
+    {
+        if (!cparams[index].includes('='))
+            continue;
+        let inputText = setInputParams(cparams, index);
+        let vars = inputText.split(';')[0];
+        var res = getVName(cparams[indexV], indexV);
+        indexV = parseInt(res.split(';')[1]) + 1;
+        index = inputText.split(';')[1];
+        if (res.split(';')[0] in been)
+            continue;
+        code = 'let ' + res.split(';')[0] + '=' + vars + ';' + code;
+    }
     return code;
+}
+
+function getVName(v, index){
+    var res = '';
+    if (v[index].includes('[')){
+        res = v[index].split('=')[0].trim();
+        while (!v.includes(']'))
+            index++;
+    }
+    else
+        res = v[index].trim();
+    res += ';' + index;
+    return res;
 }
 
 function setInputParams(input, index){
@@ -57,7 +82,24 @@ function setInputParams(input, index){
         return input[index].trim() + ';' + index;
 }
 
+// function fixValues(v){
+//     var parser = new Parser({operators:{'in':true, '<':true, '>': true, '==': true, '!=': true, '<=': true, '>=': true}});
+//     for (let item in v)
+//     {
+//         var numbs = true;
+//         var b = v[item].match(/(\w+)/g);
+//         for (var i in b)
+//             if (isNaN(b[i]))
+//                 numbs = false;
+//         if (!v[item].includes('\'') && numbs && !v[item].includes('['))
+//             v[item] = parser.parse(v[item]).evaluate({});
+//     }
+//     return v;
+// }
+
+
 function drawFunction(funcObject){
+//    funcObject.values = fixValues(funcObject.values);
     var toPrint = '';
     var ifVal = false;
     var exp;
@@ -71,10 +113,10 @@ function drawFunction(funcObject){
         if (funcObject.func[row].includes('else if'))
         {
             exp = funcObject.func[row].substring(9,funcObject.func[row].length-3);
-            exp = exp.replace('[','_');
-            exp = exp.replace(']','_');
-            exp = exp.replace('&&',' and ');
-            exp = exp.replace('||',' or ');
+            exp = exp.replace(/\[/g,'_');
+            exp = exp.replace(/\]/g,'_');
+            exp = exp.replace(/\&\&/g,' and ');
+            exp = exp.replace(/\|\|/g,' or ');
             sol = parser.evaluate(exp, funcObject.values);
             if (!ifVal && sol){
                 color = 'green';
@@ -112,10 +154,10 @@ function drawFunction(funcObject){
         else if (funcObject.func[row].includes('if'))
         {
             exp = funcObject.func[row].substring(4,funcObject.func[row].length-3);
-            exp = exp.replace('[','_');
-            exp = exp.replace(']','_');
-            exp = exp.replace('&&',' and ');
-            exp = exp.replace('||',' or ');
+            exp = exp.replace(/\[/g,'_');
+            exp = exp.replace(/\]/g,'_');
+            exp = exp.replace(/\&\&/g,' and ');
+            exp = exp.replace(/\|\|/g,' or ');
             sol = parser.evaluate(exp, funcObject.values);
             if (sol){
                 color = 'green';

@@ -17,12 +17,12 @@ const parseCode = (codeToParse) => {
 
 const objectTable = (parsedCode) => {
     table = { 'Rows': [] };
-    createObjectTable(parsedCode);
     func = [];
     globals = [];
     isGlobals = true;
     variables = {};
     values = {};
+    createObjectTable(parsedCode);
     createFunction();
     fixValues();
     return { 'func': func, 'values': values };
@@ -30,7 +30,7 @@ const objectTable = (parsedCode) => {
 
 function fixValues(){
     for (var i in values)
-        if(typeof(values[i]) === 'string' && values[i].includes('['))
+        if(typeof(values[i]) === 'string' && values[i][0]=='[')
         {
             var vals = values[i].substring(1, values[i].length-1).split(',');
             for (var j = 0; j < vals.length; j++)
@@ -42,45 +42,44 @@ function fixValues(){
 
 function insertToValues(i, j, v)
 {
-    if (!((i + '_' + j + '_') in values))
-        values[i + '_' + j + '_'] = valuesToType(v);
+    //if (!((i + '_' + j + '_') in values))
+    values[i + '_' + j + '_'] = valuesToType(v);        
 }
 
 function valuesToType(v){
     if (v == 'true')
         return true;
-    else if (v == 'false')
-        return false;   
-    else if (!isNumber(v) && v.includes('\''))
+    if (v == 'false')
+        return false;
+    if (!isNaN(v))
+        return parseInt(v);   
+    if (v.includes('\''))
         return v.split('\'')[1];
-    else
-        return parseInt(v);
+    return v;
 }
 
-function replaceValue(row, f) {
-    var i, j, replace = '';
-    i = row.indexOf(f) + f.length - 1;
-    if (values[f] == 0) {
-        j = row.indexOf(f) - 1;
-        while (row[j] == ' ')
-            j--;
-    }
-    else {
-        j = row.indexOf(f);
-        replace = values[f];
-    }
-    row = row.slice(0, j) + replace + row.slice(i + 1);
-    return row;
-}
+// function replaceValue(row, f) {
+//     var i, j, replace = '';
+//     i = row.indexOf(f) + f.length - 1;
+//     if (values[f] == 0) {
+//         j = row.indexOf(f) - 1;
+//         while (row[j] == ' ')
+//             j--;
+//     }
+//     else {
+//         j = row.indexOf(f);
+//         replace = values[f];
+//     }
+//     row = row.slice(0, j) + replace + row.slice(i + 1);
+//     return row;
+// }
 
 function insertToFunc(row) {
-    var features = row.match(/(\w+)/g);
-    if (features != null)
-        for (var f =0; f<features.length; f++) {
-            if (values.hasOwnProperty(features[f]) && globals.indexOf(features[f]) < 0) {
-                row = replaceValue(row, features[f]);
-            }
-        }
+    // var features = row.match(/(\w+)/g);
+    // if (features != null)
+    //     for (var f =0; f<features.length; f++)
+    //         if (values.hasOwnProperty(features[f]) && globals.indexOf(features[f]) < 0)
+    //             row = replaceValue(row, features[f]);
     func.push(row);
 }
 
@@ -89,13 +88,10 @@ function handleFD(row, index) {
     var s = 'function ' + row.name + '(';
     for (var i = 0; i < row.params.length; i++) {
         globals.push(row.params[i].name);
-        if (!row.params[i].hasOwnProperty('value'))
-            s += row.params[i].name + ', ';
-        else {
-            s += row.params[i].name + ' = ' + row.params[i].value + ', ';
+        s += row.params[i].name + ', ';
+        if (row.params[i].hasOwnProperty('value'))    
             if (!(row.params[i].name in values))
                 values[row.params[i].name] = row.params[i].value;
-        }
     }
     s = s.substring(0, s.length - 2) + ') {';
     insertToFunc(s);
@@ -103,22 +99,40 @@ function handleFD(row, index) {
 }
 
 function handleAE(row, index) {
-    if (!isNumber(row.value))
+    if (isNaN(row.value))
         replaceVariables(row);
     else
         values[row.name] = row.value;
     if (globals.indexOf(row.name.split('[')[0]) > -1){
         insertToFunc(row.name + ' = ' + row.value + ';');
-        if (row.name.includes('['))
-            values[row.name.replace('[', '_').replace(']','_')] = row.value;
-        else
-            values[row.name] = row.value;
+        //if (row.name.includes('['))
+        //    values[row.name.replace('[', '_').replace(']','_')] = row.value;
+        //else
+        values[row.name] = row.value;
     }
     return index;
 }
 
+function isArray(text)
+{
+    if (text[0] == '[' && text[text.length-1] == ']')
+        return true;
+    return false;
+}
+
 function replaceVars(a, b, text) {
-    text = text.replaceAll(a, b);
+    if (!isArray(b)){
+        text = text.replaceAll(a, b);
+        text = removeZero(text);
+    }
+    else
+    {
+        var end = text.substring(text.indexOf(a), text.indexOf(']', text.indexOf(a))+1);
+        var pos = b.substring(1,b.length-1).split(',');
+        var index = end.split('[')[1].split(']')[0];
+        text = text.substring(0, text.indexOf(a)) + pos[index];
+        text = removeZero(text);
+    }
     return text;
 }
 
@@ -135,13 +149,37 @@ function setRowValue(row, features, i) {
     return row.value;
 }
 
+function removeZero(v)
+{
+    //var regBoth = /(\+|\/|-|\*)0(\+|\/|-|\*)/g;
+    var regLeft = /(\+|\/|-|\*)0/g;
+    //var regRight = /0(\+|\/|-|\*)/g;
+    //if (v.match(regBoth)) {
+    //    v = v.replace(regBoth, '');
+    //}
+    if (v.match(regLeft)) {
+        v = v.replace(regLeft, '');
+    }
+    //if (v.match(regRight)) {
+    //    v = v.replace(regRight, '');
+    //}
+    if (v[0]=='0' && v.length > 1 && v[1]!='.')
+        v = v.substring(2);
+    return v;
+}
+
 function replaceVariables(row) {
     var features = row.value.match(/(\w+)/g);
     for (var i in features)
         if (features[i] in variables) {
             row.value = setRowValue(row, features, i);
+            //if (isGlobals)
+            //    values[row.name] = row.value;
+            //else
             variables[row.name] = row.value;
         }
+        else if (isGlobals)
+            values[row.name] = row.value;
         else
             variables[row.name] = row.value;
     return row.value;
@@ -149,14 +187,25 @@ function replaceVariables(row) {
 
 function handleVD(row, index) {
     if (row.hasOwnProperty('value')) {
-        if (!isNumber(row.value) && !row.value.includes('['))
+        if (isNaN(row.value) && !row.value.includes('['))
             row.value = replaceVariables(row);
         else
-            values[row.name] = row.value;
+            inserGlobaltToValues(row);
+            
     }
     if (isGlobals)
         globals.push(row.name);
     return index;
+}
+
+function inserGlobaltToValues(row){
+    if (isGlobals)
+        values[row.name] = row.value;
+    else {
+        if (row.value.includes('['))
+            values[row.name] = row.value;
+        variables[row.name] = row.value;
+    }
 }
 
 function handleRS(row, index) {
@@ -166,7 +215,7 @@ function handleRS(row, index) {
             if (features[i] in variables)
                 row.value = replaceVars(features[i], variables[features[i]], row.value);
     }
-    insertToFunc('return ' + row.value);
+    insertToFunc('return ' + row.value + ';');
     return index;
 }
 
@@ -215,7 +264,7 @@ function handleES(row, index) {
 }
 
 function bodyIterator(index, first) {
-    while (index < table.Rows.length - 1 && (table.Rows[index + 1].hasOwnProperty('belong') || first)) {
+    while (index < table.Rows.length - 1 && isB(index, first)) {
         index++;
         first = false;
         index = handleCases(table.Rows[index].obj.type, table.Rows[index].obj, index);
@@ -243,13 +292,20 @@ function handleWS(row, index) {
         if (features[i] in variables)
             row.condition = replaceVars(features[i], variables[features[i]], row.condition);
     func.push('while (' + row.condition + ') {');
-    while (table.Rows[index + 1].hasOwnProperty('belong') || first) {
+    while (isB(index, first)) {
         index++;
         first = false;
         index = handleCases(table.Rows[index].obj.type, table.Rows[index].obj, index);
     }
     func.push('}');
     return index;
+}
+
+function isB(index, first)
+{
+    if (index+1<table.Rows.length && (table.Rows[index + 1].hasOwnProperty('belong') || first))
+        return true;
+    return false;
 }
 
 function handleIS(row, index) {
@@ -384,11 +440,11 @@ function ExtractElements(obj) {
     return 0;
 }
 
-function isLoop(obj) {
-    var loopDic = ['WhileStatement', 'DoWhileStatement', 'ForStatement', 'ForOfStatement', 'ForInStatement'];
-    if (loopDic.indexOf(obj.type) >= 0)
-        return true;
-}
+// function isLoop(obj) {
+//     var loopDic = ['WhileStatement', 'DoWhileStatement', 'ForStatement', 'ForOfStatement', 'ForInStatement'];
+//     if (loopDic.indexOf(obj.type) >= 0)
+//         return true;
+// }
 
 function isIf(obj) {
     var ifDic = ['IfStatement', 'Else If Statement'];
@@ -408,9 +464,11 @@ function ExtractElement(obj) {
 function ExtractSpecial(obj) {
     if (isIf(obj))
         return new If(obj);
-    if (isLoop(obj))
-        return new Loop(obj);
-    return 0;
+    //if (isLoop(obj))
+    //if (obj.type == 'UpdateExpression')
+    //  return new AssignmentExpression({'type':'AssignmentExpression', 'left': obj.argument, 'right': {'type': 'Literal', 'raw': obj.argument.name + '++'}});
+    return new Loop(obj);
+    //return 0;
 }
 
 export { parseCode, objectTable };

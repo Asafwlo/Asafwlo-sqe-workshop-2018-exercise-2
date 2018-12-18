@@ -86,36 +86,36 @@ function setDoWhileStatement(obj)
         return setDeclaration(obj.test);
 }
 
-function setForStatement(obj)
-{
-    if (obj.init === null)
-        var init = '';
-    else
-        init = setDeclaration(obj.init);
-    if (obj.test === null)
-        var test = '';
-    else
-        test = ExtractArgument(obj.test);
-    if (obj.update === null)
-        var update = '';
-    else
-        update = ExtractArgument(obj.update);
-    return init + ';' + test + ';' + update;
-}
-function setForInStatement(obj)
-{
-    return obj.left.name + ' in ' + obj.right.name;
-}
+// function setForStatement(obj)
+// {
+//     if (obj.init === null)
+//         var init = '';
+//     else
+//         init = setDeclaration(obj.init);
+//     if (obj.test === null)
+//         var test = '';
+//     else
+//         test = ExtractArgument(obj.test);
+//     if (obj.update === null)
+//         var update = '';
+//     else
+//         update = ExtractArgument(obj.update);
+//     return init + ';' + test + ';' + update;
+// }
+// function setForInStatement(obj)
+// {
+//     return obj.left.name + ' in ' + obj.right.name;
+// }
 
 function getLoopCond(obj){
-    var whiles = ['WhileStatement','DoWhileStatement'];
-    var forIns = ['ForOfStatement','ForInStatement'];
-    if (whiles.indexOf(obj.type) >= 0)
-        return setDoWhileStatement(obj);
-    if (forIns.indexOf(obj.type) >= 0)
-        return setForInStatement(obj);
-    else
-        return setForStatement(obj);
+    //var whiles = ['WhileStatement','DoWhileStatement'];
+    //var forIns = ['ForOfStatement','ForInStatement'];
+    //if (whiles.indexOf(obj.type) >= 0)
+    return setDoWhileStatement(obj);
+    //if (forIns.indexOf(obj.type) >= 0)
+    //    return setForInStatement(obj);
+    //else
+    //    return setForStatement(obj);
 }
 export class Loop{
     constructor(obj){
@@ -138,14 +138,14 @@ function handleIfCondition(obj){
     var left='';
     var right='';
     if (obj.test.left.type === 'MemberExpression'){
-        if (!obj.test.left.hasOwnProperty('name'))
-            left = handleMemberExp(obj.test.left);
+        //if (!obj.test.left.hasOwnProperty('name'))
+        left = handleMemberExp(obj.test.left);
     }
     else
         left = setDeclaration(obj.test.left);
     if (obj.test.right.type === 'MemberExpression'){
-        if (!obj.test.right.hasOwnProperty('name'))
-            right = handleMemberExp(obj.test.right);
+        //if (!obj.test.right.hasOwnProperty('name'))
+        right = handleMemberExp(obj.test.right);
     }
     else
         right = setDeclaration(obj.test.right);
@@ -179,15 +179,15 @@ function handleBinaryExpression(obj){
     return left + obj.operator + right;
 }
 
-function handleUpdateExpression(obj){
-    var ans = '';
-    ans = ans + setDeclaration(obj.argument);
-    if (obj.prefix === true)
-        ans = obj.operator + ans;
-    else
-        ans = ans + obj.operator;
-    return ans;
-}
+// function handleUpdateExpression(obj){
+//     var ans = '';
+//     ans = ans + setDeclaration(obj.argument);
+//     if (obj.prefix === true)
+//         ans = obj.operator + ans;
+//     else
+//         ans = ans + obj.operator;
+//     return ans;
+// }
 function ExtractArgument(obj){
     switch(obj.type){
     case 'UnaryExpression':
@@ -196,8 +196,8 @@ function ExtractArgument(obj){
         return handleBinaryExpression(obj);
     case 'LogicalExpression':
         return handleBinaryExpression(obj);
-    case 'UpdateExpression':
-        return handleUpdateExpression(obj);
+    //case 'UpdateExpression':
+      //  return handleUpdateExpression(obj);
     }
 }
 export class ReturnStatement{
