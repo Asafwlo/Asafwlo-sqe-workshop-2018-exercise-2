@@ -16,7 +16,7 @@
             "src/**/*.js"
         ],
         "instrument": false,
-        "sourceMap": false6827153
+        "sourceMap": false
     },
     "author": "",
     "license": "ISC",
