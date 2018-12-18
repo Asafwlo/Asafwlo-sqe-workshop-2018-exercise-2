@@ -3,6 +3,7 @@ import {parseCode, objectTable} from './code-analyzer';
 import {Parser} from 'expr-eval';
 
 var data;
+var parser = new Parser({operators:{'in':true, '<':true, '>': true, '==': true, '!=': true, '<=': true, '>=': true}});
 
 $(document).ready(function () {
     $('#codeSubmissionButton').click(() => {
@@ -21,10 +22,9 @@ $(document).ready(function () {
     });
 });
 
-function replaceParams(input, code){
-    var ci = code.indexOf('('),co = code.indexOf(')'),ii = input.indexOf('('),io = input.indexOf(')');
-    var cparams = code.substring(ci+1,co).split(','), iparams = input.substring(ii+1,io).split(',');
-    var indexV=0, indexC=0, len = Math.max([cparams.length, iparams.length]);
+function replaceInputParams(cparams, iparams, code)
+{
+    var indexV=0;
     var been = {};
     for (let index=0;index<iparams.length;index++)
     {
@@ -36,7 +36,11 @@ function replaceParams(input, code){
         code = 'let ' + res.split(';')[0] + '=' + vars + ';' + code;
         index = inputText.split(';')[1];
     }
-    indexV=0;
+    return {'code':code,'been': been};
+}
+
+function replaceCodeParams(cparams, been, code){
+    var indexV = 0;
     for (let index=0;index<cparams.length;index++)
     {
         if (!cparams[index].includes('='))
@@ -50,6 +54,17 @@ function replaceParams(input, code){
             continue;
         code = 'let ' + res.split(';')[0] + '=' + vars + ';' + code;
     }
+    return code;
+}
+
+function replaceParams(input, code){
+    var ci = code.indexOf('('),co = code.indexOf(')'),ii = input.indexOf('('),io = input.indexOf(')');
+    var cparams = code.substring(ci+1,co).split(','), iparams = input.substring(ii+1,io).split(',');
+    var been = {};
+    var iRes = replaceInputParams(cparams, iparams, code);
+    code = iRes.code;
+    been = iRes.been;
+    code = replaceCodeParams(cparams, been, code);
     return code;
 }
 
@@ -97,88 +112,76 @@ function setInputParams(input, index){
 //     return v;
 // }
 
+function drawElseIf(funcObject, toPrint, parser, ifVal, color, tab, row, level){
+    var exp = funcObject.func[row].substring(9,funcObject.func[row].length-3);
+    exp = exp.replace(/\[/g,'_').replace(/\]/g,'_').replace(/&&/g,' and ').replace(/\|\|/g,' or ');
+    var sol = parser.evaluate(exp, funcObject.values);
+    if (!ifVal && sol){
+        color = 'green';
+        ifVal = true;
+    }
+    else {
+        color = 'red';
+        ifVal = false;
+    }
+    toPrint += '<p class="'+color+'">'+tab.repeat(level)+funcObject.func[row].replace(/</g,' &lt; ').replace(/>/g,' &gt; ')+'</p>';
+    while (funcObject.func[row+1] !== '}')
+    {
+        row++;
+        toPrint += '<p>'+tab.repeat(level + 1)+funcObject.func[row]+'</p>';
+    }
+    return {'toPrint': toPrint, 'ifVal': ifVal, 'row': row};
+}
+
+function drawElse(toPrint, ifVal, color, tab, funcObject, row, level){
+    if (ifVal)
+        color = 'red';
+    else
+        color = 'green';
+    toPrint += '<p class="'+color+'">'+tab.repeat(level)+funcObject.func[row]+'</p>';
+    while (funcObject.func[row+1] !== '}')
+    {
+        row++;
+        toPrint += '<p>'+tab.repeat(level+1)+funcObject.func[row]+'</p>';
+    }
+    return {'toPrint': toPrint, 'ifVal': ifVal, 'row': row};
+}
+
+function drawIf(sol, parser,color,ifVal, funcObject,toPrint, level, tab, row){
+    var exp = funcObject.func[row].substring(4,funcObject.func[row].length-3);
+    exp = exp.replace(/\[/g,'_').replace(/\]/g,'_').replace(/&&/g,' and ').replace(/\|\|/g,' or ');
+    sol = parser.evaluate(exp, funcObject.values);
+    if (sol){
+        color = 'green';
+        ifVal = true;
+    }
+    else{
+        color = 'red';
+        ifVal = false;
+    }
+    toPrint += '<p class="'+color+'">'+tab.repeat(level)+funcObject.func[row].replace(/</g,' &lt; ').replace(/>/g,' &gt; ')+'</p>';
+    while (funcObject.func[row+1] !== '}')
+    {
+        row++;
+        toPrint += '<p>'+tab.repeat(level + 1)+funcObject.func[row]+'</p>';
+    }
+    return {'toPrint': toPrint, 'ifVal': ifVal, 'row': row};
+}
 
 function drawFunction(funcObject){
-//    funcObject.values = fixValues(funcObject.values);
-    var toPrint = '';
-    var ifVal = false;
-    var exp;
-    var sol;
-    var color;
-    var level = 1;
-    var tab = '&nbsp;&nbsp;&nbsp;&nbsp;';
-    var parser = new Parser({operators:{'in':true, '<':true, '>': true, '==': true, '!=': true, '<=': true, '>=': true}});
-    for (var row=0; row< funcObject.func.length; row++)
-    {
-        if (funcObject.func[row].includes('else if'))
-        {
-            exp = funcObject.func[row].substring(9,funcObject.func[row].length-3);
-            exp = exp.replace(/\[/g,'_');
-            exp = exp.replace(/\]/g,'_');
-            exp = exp.replace(/\&\&/g,' and ');
-            exp = exp.replace(/\|\|/g,' or ');
-            sol = parser.evaluate(exp, funcObject.values);
-            if (!ifVal && sol){
-                color = 'green';
-                ifVal = true;
-            }
-            else {
-                color = 'red';
-                ifVal = false;
-            }
-            toPrint += '<p class="'+color+'">'+tab.repeat(level)+funcObject.func[row].replace(/</g," &lt; ").replace(/>/g," &gt; ")+'</p>';
-            level++;
-            while (funcObject.func[row+1] !== '}')
-            {
-                row++;
-                toPrint += '<p>'+tab.repeat(level)+funcObject.func[row]+'</p>';
-            }
-            level--;
-            continue;
-        } else if (funcObject.func[row].includes('else'))
-        {
-            if (ifVal)
-                color = 'red';
-            else
-                color = 'green';
-            toPrint += '<p class="'+color+'">'+tab.repeat(level)+funcObject.func[row]+'</p>';
-            level++;
-            while (funcObject.func[row+1] !== '}')
-            {
-                row++;
-                toPrint += '<p>'+tab.repeat(level)+funcObject.func[row]+'</p>';
-            }
-            level--;
-            continue;
-        }
-        else if (funcObject.func[row].includes('if'))
-        {
-            exp = funcObject.func[row].substring(4,funcObject.func[row].length-3);
-            exp = exp.replace(/\[/g,'_');
-            exp = exp.replace(/\]/g,'_');
-            exp = exp.replace(/\&\&/g,' and ');
-            exp = exp.replace(/\|\|/g,' or ');
-            sol = parser.evaluate(exp, funcObject.values);
-            if (sol){
-                color = 'green';
-                ifVal = true;
-            }
-            else{
-                color = 'red';
-                ifVal = false;
-            }
-            toPrint += '<p class="'+color+'">'+tab.repeat(level)+funcObject.func[row].replace(/</g," &lt; ").replace(/>/g," &gt; ")+'</p>';
-            level++;
-            while (funcObject.func[row+1] !== '}')
-            {
-                row++;
-                toPrint += '<p>'+tab.repeat(level)+funcObject.func[row]+'</p>';
-            }
-            level--;
-            continue;
+    var toPrint = '', ifVal = false, exp, sol, color, level = 1, tab = '&nbsp;&nbsp;&nbsp;&nbsp;';
+    for (var row=0; row < funcObject.func.length; row++)
+        if (funcObject.func[row].includes('else if')){
+            let res = drawElseIf(exp, funcObject, toPrint, parser, ifVal,color,tab, row, level);
+            toPrint = res.toPrint; ifVal = res.ifVal; row = res.row;
+        } else if (funcObject.func[row].includes('else')){
+            let res = drawElse(toPrint, ifVal, color, tab, funcObject, row, level);
+            toPrint = res.toPrint; ifVal = res.ifVal; row = res.row;
+        } else if (funcObject.func[row].includes('if')){
+            let res = drawIf(sol, parser,color, ifVal, funcObject, exp,toPrint, level, tab, row);
+            toPrint = res.toPrint; ifVal = res.ifVal; row = res.row;
         }
         else
-            toPrint += '<p>'+tab.repeat(level)+funcObject.func[row].replace(/</g," &lt; ").replace(/>/g," &gt; ")+'</p>';
-    }
+            toPrint += '<p>'+tab.repeat(level)+funcObject.func[row].replace(/</g,' &lt; ').replace(/>/g,' &gt; ')+'</p>';
     document.getElementById('outPutFunction').innerHTML = toPrint;
 }
