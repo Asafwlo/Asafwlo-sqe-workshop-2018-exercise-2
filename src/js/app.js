@@ -30,7 +30,7 @@ function replaceInputParams(cparams, iparams, code)
     {
         let inputText = setInputParams(iparams, index);
         let vars = inputText.split(';')[0];
-        var res = getVName(cparams[indexV], indexV);
+        var res = getVName(cparams, indexV);
         been[res.split(';')[0]] = true; 
         indexV = parseInt(res.split(';')[1]) + 1;
         code = 'let ' + res.split(';')[0] + '=' + vars + ';' + code;
@@ -47,7 +47,7 @@ function replaceCodeParams(cparams, been, code){
             continue;
         let inputText = setInputParams(cparams, index);
         let vars = inputText.split(';')[0];
-        var res = getVName(cparams[indexV], indexV);
+        var res = getVName(cparams, indexV);
         indexV = parseInt(res.split(';')[1]) + 1;
         index = inputText.split(';')[1];
         if (res.split(';')[0] in been)
@@ -169,16 +169,16 @@ function drawIf(sol, parser,color,ifVal, funcObject,toPrint, level, tab, row){
 }
 
 function drawFunction(funcObject){
-    var toPrint = '', ifVal = false, exp, sol, color, level = 1, tab = '&nbsp;&nbsp;&nbsp;&nbsp;';
+    var toPrint = '', ifVal = false, sol, color, level = 1, tab = '&nbsp;&nbsp;&nbsp;&nbsp;';
     for (var row=0; row < funcObject.func.length; row++)
         if (funcObject.func[row].includes('else if')){
-            let res = drawElseIf(exp, funcObject, toPrint, parser, ifVal,color,tab, row, level);
+            let res = drawElseIf(funcObject, toPrint, parser, ifVal,color,tab, row, level);
             toPrint = res.toPrint; ifVal = res.ifVal; row = res.row;
         } else if (funcObject.func[row].includes('else')){
             let res = drawElse(toPrint, ifVal, color, tab, funcObject, row, level);
             toPrint = res.toPrint; ifVal = res.ifVal; row = res.row;
         } else if (funcObject.func[row].includes('if')){
-            let res = drawIf(sol, parser,color, ifVal, funcObject, exp,toPrint, level, tab, row);
+            let res = drawIf(sol, parser,color, ifVal, funcObject, toPrint, level, tab, row);
             toPrint = res.toPrint; ifVal = res.ifVal; row = res.row;
         }
         else
